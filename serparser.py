@@ -1,10 +1,14 @@
 #-*- coding:utf-8 -*-
 from bs4 import BeautifulSoup
+import re
 import requests.hooks
+def getElementInteger(element):
+    return (int(element.get_text()) if element.get_text().isnumeric() else 0) if element != None else 0 
 def getElementFloat(element):
     return float(element.get_text().replace(",",".")) if element != None else 0.0 
 def getElementText(element):
     return element.get_text() if element != None else "unknown"
+HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.77 Safari/537.36"}
 class CurrencyParser:
     DEBUG     = False
     SERVER    = "https://kur.doviz.com/"
@@ -122,7 +126,8 @@ class CurrencyParser:
             },
         }
     def GetCurrencyData(self,url):
-        r = requests.get(url)
+        global HEADERS
+        r = requests.get(url,headers=HEADERS)
         soup = BeautifulSoup(r.text, 'html.parser')
         spans = soup.select('.data .value')
         buy  = getElementFloat(spans[0])
@@ -151,11 +156,68 @@ class CurrencyParser:
             print("\tBanks:")
             for bank in banks:
                 print("\t\t%s (B:S): %s:%s"%(bank["name"],bank["buy"],bank["sell"]))
-
-
+from base64 import b64decode
+def MustContent(arr,target):
+    m=False
+    target = target.lower().strip()
+    for i in arr:
+        m = m or (target.find(i.lower()) >= 0)
+    # print("|%s|%s|%s|"%(m,target,i.lower()))
+    return m
+class ProxyParser:
+    DEBUG = False
+    SERVER = "https://hidemy.name/en/proxy-list/"
+    PROTOCOLS = ["HTTP","HTTPS","SOCKS4","SOCKS5"]
+    PROXY_LIST = []
+    def __init__(self,Debug=False):
+        self.DEBUG = Debug
+        self.PROXY_LIST = []
+    def Reload(self,page_count=10):
+        for i in range(0,page_count):
+            self.PROXY_LIST += self.GetPage(i)
+    def GetPage(self,pagenumber=0):
+        global HEADERS
+        r = requests.get("%s"%(self.SERVER),params={
+            "start":pagenumber*64
+        },headers=HEADERS)
+        soup = BeautifulSoup(r.text, 'html.parser')
+        table = soup.select_one("tbody")
+        dts = []
+        for tr in table.select("tr"):
+            tds = tr.select("td")
+            ip  = getElementText(tds[0])
+            port= getElementInteger(tds[1])
+            protocol  = getElementText(tds[4])
+            anonymity = getElementText(tds[5])
+            data = {
+                "ip":ip,
+                "port":port,
+                "protocol":protocol,
+                "anonymity":anonymity
+            }
+            if(not MustContent(self.PROTOCOLS,protocol)):
+                continue
+            dts.append(data)
+        return dts
+    def PrintAll(self):
+        print("Proxies")
+        for proxy in self.PROXY_LIST:
+            print("\tIP/PORT: %s:%s\n\tProtocol: %s\n\tAnonymity: %s"%(proxy["ip"],proxy["port"],proxy["protocol"],proxy["anonymity"]))
 def main():
-    cp = CurrencyParser(True)
-    cp.PrintAll()
-
+    import argparse 
+    parser = argparse.ArgumentParser("SerParser DEBUG CLI")
+    parser.add_argument("--currency",action="store_true")
+    parser.add_argument("--proxy",action="store_true")
+    args = parser.parse_args()
+    if(args.currency):
+        cp = CurrencyParser(True)
+        cp.PrintAll()
+    elif(args.proxy):
+        pp = ProxyParser(True)
+        pp.Reload(5)
+        if(len(pp.PROXY_LIST)<50):
+            pp.PrintAll()
+        else:
+            print("I Can't print all of them so many proxy exists. Like %s"%(len(pp.PROXY_LIST)))
 if __name__ == "__main__":
     main()
