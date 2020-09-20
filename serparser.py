@@ -156,7 +156,6 @@ class CurrencyParser:
             print("\tBanks:")
             for bank in banks:
                 print("\t\t%s (B:S): %s:%s"%(bank["name"],bank["buy"],bank["sell"]))
-from base64 import b64decode
 def MustContent(arr,target):
     m=False
     target = target.lower().strip()
